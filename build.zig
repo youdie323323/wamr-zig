@@ -71,6 +71,8 @@ fn buildCMake(b: *std.Build, dependency: std.Build.LazyPath) *std.Build.Step.Run
     const cmake_config = b.addSystemCommand(&.{"cmake"});
 
     cmake_config.addArg("-DCMAKE_BUILD_TYPE=MinSizeRel");
+    cmake_config.addArg("-DWAMR_BUILD_AOT=OFF");
+    cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF");
     cmake_config.addPrefixedDirectoryArg("-S", dependency);
     cmake_config.addPrefixedDirectoryArg("-B", cache_path);
 
