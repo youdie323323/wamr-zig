@@ -27,36 +27,19 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    const addWamrIncludePaths = struct {
-        fn add(
-            step: *std.Build.Step.TranslateC,
-            root: std.Build.LazyPath,
-            builder: *std.Build,
-            target_inner: std.Build.ResolvedTarget,
-        ) void {
-            step.addIncludePath(root.path(builder, "core/shared/utils/uncommon"));
-            step.addIncludePath(root.path(builder, "core/shared/utils"));
-            step.addIncludePath(root.path(builder, "core/shared/include"));
-            step.addIncludePath(root.path(builder, "core/iwasm/include"));
-            step.addIncludePath(root.path(builder, "core/iwasm/common"));
+    bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils/uncommon"));
+    bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils"));
 
-            const os_tag = target_inner.result.os.tag;
+    {
+        const os_tag_name = @tagName(target.result.os.tag);
 
-            const platform_name = switch (os_tag) {
-                .windows => "windows",
-                .linux => "linux",
-                .macos => "darwin",
-                else => @tagName(os_tag),
-            };
+        bh_reader_bindgen.addIncludePath(wamr_root.path(
+            b,
+            b.fmt("core/shared/platform/{s}", .{os_tag_name}),
+        ));
 
-            step.addIncludePath(root.path(builder, builder.fmt("core/shared/platform/{s}", .{platform_name})));
-            step.addIncludePath(root.path(builder, "core/shared/platform/include"));
-        }
-    }.add;
-
-    addWamrIncludePaths(bh_reader_bindgen, wamr_root, b, target);
-    addWamrIncludePaths(wasm_export_bindgen, wamr_root, b, target);
-    addWamrIncludePaths(wasm_c_bindgen, wamr_root, b, target);
+        bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/platform/include"));
+    }
 
     const vmlib = buildCMake(b, wamr_root);
 
@@ -83,23 +66,22 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn buildCMake(b: *std.Build, dependency: std.Build.LazyPath) *std.Build.Step.Run {
-    const build_dir = b.cache_root.path orelse ".zig-cache";
+    const cache_path = b.path(".zig-cache");
 
     const cmake_config = b.addSystemCommand(&.{"cmake"});
 
     cmake_config.addArg("-DCMAKE_BUILD_TYPE=MinSizeRel");
     cmake_config.addPrefixedDirectoryArg("-S", dependency);
-    cmake_config.addArgs(&.{ "-B", build_dir });
+    cmake_config.addPrefixedDirectoryArg("-B", cache_path);
 
     const cpu_count = std.Thread.getCpuCount() catch 1;
 
-    const cmake_build = b.addSystemCommand(&.{
-        "cmake",
-        "--build",
-        build_dir,
-        "--parallel",
-        b.fmt("{d}", .{cpu_count}),
-    });
+    const cmake_build = b.addSystemCommand(&.{"cmake"});
+
+    cmake_build.addArg("--build");
+    cmake_build.addDirectoryArg(cache_path);
+    cmake_build.addArg("--parallel");
+    cmake_build.addArg(b.fmt("{d}", .{cpu_count}));
 
     cmake_build.step.dependOn(&cmake_config.step);
 
