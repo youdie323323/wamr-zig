@@ -71,12 +71,12 @@ fn buildCMake(b: *std.Build, dependency: std.Build.LazyPath, target: std.Build.R
     const cmake_config = b.addSystemCommand(&.{"cmake"});
 
     cmake_config.addArg("-DCMAKE_BUILD_TYPE=MinSizeRel");
-    cmake_config.addArg("-DWAMR_BUILD_AOT=OFF"); // Disable AOT to avoid fetching zycore/Zydis
-    cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF"); // Disable disassembler if not needed
-    cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF"); // Disable SIMD as SIMDe doesn't support Windows
+    cmake_config.addArg("-DWAMR_BUILD_AOT=OFF");
+    cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF");
+    cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF");
 
     if (target.result.os.tag == .windows) {
-        cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
+        cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
     }
 
