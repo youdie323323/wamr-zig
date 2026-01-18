@@ -3,7 +3,7 @@ const builtin = @import("builtin");
 
 pub fn build(b: *std.Build) !void {
     // -------------------------------------------------------------------------
-    // 1. Windows環境で強制的に MSVC ABI を使用するロジック (修正版)
+    // 1. Windows環境で強制的に MSVC ABI を使用するロジック
     // -------------------------------------------------------------------------
     var target_query = std.Target.Query.parse(.{
         .arch_os_abi = b.option([]const u8, "target", "The CPU architecture, OS, and ABI to build for") orelse "native",
@@ -49,11 +49,19 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    // 【修正点】Windowsヘッダーの軽量化 (translate-Cのエラー回避)
+    if (is_windows) {
+        const macro_name = "WIN32_LEAN_AND_MEAN";
+        const macro_val = "1";
+        wasm_c_bindgen.defineCMacro(macro_name, macro_val);
+        wasm_export_bindgen.defineCMacro(macro_name, macro_val);
+        bh_reader_bindgen.defineCMacro(macro_name, macro_val);
+    }
+
     bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils/uncommon"));
     bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils"));
 
     {
-        // OSタグに応じたパス設定 (windows/linux/macos等)
         const os_tag_name = @tagName(target.result.os.tag);
         bh_reader_bindgen.addIncludePath(wamr_root.path(
             b,
@@ -68,8 +76,6 @@ pub fn build(b: *std.Build) !void {
     };
 
     const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
-    
-    // 生成順序の依存関係
     wasm_export_bindgen.step.dependOn(&iwasm.step);
 
     // -------------------------------------------------------------------------
@@ -87,10 +93,8 @@ pub fn build(b: *std.Build) !void {
     wamr_module.addImport("bh_read_file", bh_reader_bindgen.createModule());
 
     if (target.result.os.tag == .windows) {
-        // CMakeの出力ディレクトリをライブラリパスに追加
         wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
-        // MSVCライブラリのリンク (.lib)
         wamr_module.linkSystemLibrary("ws2_32", .{});
         wamr_module.linkSystemLibrary("bcrypt", .{});
         wamr_module.linkSystemLibrary("userenv", .{});
@@ -100,10 +104,8 @@ pub fn build(b: *std.Build) !void {
         wamr_module.addLibraryPath(b.path(".zig-cache"));
     }
 
-    // iwasm ライブラリ本体をリンク
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
 
-    // テストステップの構築
     buildTest(b, wamr_module);
 }
 
@@ -122,13 +124,11 @@ fn buildCMake(
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
     if (target.result.os.tag == .windows) {
-        // MSVCランタイムの設定: Zigのデフォルトに合わせて動的リンク(DLL)を使用
         if (std.mem.eql(u8, build_type, "Debug")) {
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL"); // /MDd
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL");
         } else {
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL"); // /MD
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL");
         }
-        // 標準的なフラグ設定
         cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
     }
@@ -159,7 +159,6 @@ fn buildTest(b: *std.Build, wamr_module: *std.Build.Module) void {
     const lib_unit_tests = b.addTest(.{
         .root_module = wamr_module,
     });
-    // テスト実行
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
