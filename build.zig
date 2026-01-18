@@ -5,7 +5,6 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     const wamr_dep = b.dependency("wamr", .{});
-
     const wamr_root = wamr_dep.path("");
 
     const wasm_c_bindgen = b.addTranslateC(.{
@@ -49,7 +48,6 @@ pub fn build(b: *std.Build) !void {
     };
 
     const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
-
     wasm_export_bindgen.step.dependOn(&iwasm.step);
 
     const wamr_module = b.addModule("wamr", .{
@@ -70,6 +68,8 @@ pub fn build(b: *std.Build) !void {
         wamr_module.linkSystemLibrary("bcrypt", .{});
         wamr_module.linkSystemLibrary("userenv", .{});
         wamr_module.linkSystemLibrary("advapi32", .{});
+        wamr_module.linkSystemLibrary("uuid", .{});
+        wamr_module.linkSystemLibrary("pathcch", .{});
     } else wamr_module.addLibraryPath(b.path(".zig-cache"));
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
@@ -87,16 +87,21 @@ fn buildCMake(
 
     const cmake_config = b.addSystemCommand(&.{"cmake"});
 
-    // Configure step
     cmake_config.addArg(b.fmt("-DCMAKE_BUILD_TYPE={s}", .{build_type}));
     cmake_config.addArg("-DWAMR_BUILD_AOT=OFF");
     cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF");
     cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF");
-
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
     if (target.result.os.tag == .windows) {
-        cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
+        if (std.mem.eql(u8, build_type, "Debug")) {
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug");
+            cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /MTd /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
+        } else {
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded");
+            cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /MT /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
+        }
+
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
     }
 
@@ -105,8 +110,8 @@ fn buildCMake(
 
     const cpu_count = std.Thread.getCpuCount() catch 1;
 
-    // Build step
     const cmake_build = b.addSystemCommand(&.{"cmake"});
+
     cmake_build.addArg("--build");
     cmake_build.addDirectoryArg(cache_path);
 
