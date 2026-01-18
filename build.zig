@@ -108,12 +108,17 @@ fn buildCMake(
     cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF");
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
-    if (target.result.os.tag == .windows) {
+if (target.result.os.tag == .windows) {
         if (std.mem.eql(u8, build_type, "Debug")) {
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL"); // /MDd
+            // 修正前: MultiThreadedDebugDLL (/MDd)
+            // 修正後: MultiThreadedDebug (/MTd) -> Zigのデフォルトに合わせる
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug");
         } else {
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL"); // /MD
+            // 修正前: MultiThreadedDLL (/MD)
+            // 修正後: MultiThreaded (/MT)
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded");
         }
+        // ... (他のフラグはそのまま)
         cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
     }
