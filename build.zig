@@ -63,7 +63,7 @@ pub fn build(b: *std.Build) !void {
     };
 
     const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
-    
+
     wasm_export_bindgen.step.dependOn(&iwasm.step);
 
     const wamr_module = b.addModule("wamr", .{
@@ -108,17 +108,15 @@ fn buildCMake(
     cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF");
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
-if (target.result.os.tag == .windows) {
+    if (target.result.os.tag == .windows) {
         if (std.mem.eql(u8, build_type, "Debug")) {
-            // 修正前: MultiThreadedDebugDLL (/MDd)
-            // 修正後: MultiThreadedDebug (/MTd) -> Zigのデフォルトに合わせる
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug");
+            // Debug時は /MDd (MultiThreadedDebugDLL)
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL");
         } else {
-            // 修正前: MultiThreadedDLL (/MD)
-            // 修正後: MultiThreaded (/MT)
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded");
+            // Release時は /MD (MultiThreadedDLL)
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL");
         }
-        // ... (他のフラグはそのまま)
+        // ... (以前追加した WIN32_LEAN_AND_MEAN はそのまま維持してください) ...
         cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
     }
