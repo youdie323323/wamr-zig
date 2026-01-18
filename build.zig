@@ -2,18 +2,13 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 pub fn build(b: *std.Build) !void {
-    // -------------------------------------------------------------------------
-    // 1. Windows環境で強制的に MSVC ABI を使用するロジック
-    // -------------------------------------------------------------------------
     var target_query = std.Target.Query.parse(.{
         .arch_os_abi = b.option([]const u8, "target", "The CPU architecture, OS, and ABI to build for") orelse "native",
     }) catch unreachable;
 
-    // "native" が指定された(または未指定の)場合、ホストOSを確認する
     const is_windows = if (target_query.os_tag) |tag| tag == .windows else builtin.os.tag == .windows;
 
     if (is_windows) {
-        // ABIが明示されていない場合、強制的に MSVC を設定
         if (target_query.abi == null) {
             target_query.abi = .msvc;
         }
@@ -22,9 +17,6 @@ pub fn build(b: *std.Build) !void {
     const target = b.resolveTargetQuery(target_query);
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
-    // -------------------------------------------------------------------------
-    // 2. WAMR のビルド設定
-    // -------------------------------------------------------------------------
     const wamr_dep = b.dependency("wamr", .{});
     const wamr_root = wamr_dep.path("");
 
@@ -49,15 +41,6 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    // 【修正点】Windowsヘッダーの軽量化 (translate-Cのエラー回避)
-    if (is_windows) {
-        const macro_name = "WIN32_LEAN_AND_MEAN";
-        const macro_val = "1";
-        wasm_c_bindgen.defineCMacro(macro_name, macro_val);
-        wasm_export_bindgen.defineCMacro(macro_name, macro_val);
-        bh_reader_bindgen.defineCMacro(macro_name, macro_val);
-    }
-
     bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils/uncommon"));
     bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils"));
 
@@ -76,11 +59,9 @@ pub fn build(b: *std.Build) !void {
     };
 
     const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
+    
     wasm_export_bindgen.step.dependOn(&iwasm.step);
 
-    // -------------------------------------------------------------------------
-    // 3. モジュール定義
-    // -------------------------------------------------------------------------
     const wamr_module = b.addModule("wamr", .{
         .root_source_file = b.path("src/bindings.zig"),
         .target = target,
@@ -125,9 +106,9 @@ fn buildCMake(
 
     if (target.result.os.tag == .windows) {
         if (std.mem.eql(u8, build_type, "Debug")) {
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL");
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL"); // /MDd
         } else {
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL");
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL"); // /MD
         }
         cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
