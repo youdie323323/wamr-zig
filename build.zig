@@ -41,9 +41,7 @@ pub fn build(b: *std.Build) !void {
         bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/platform/include"));
     }
 
-    const vmlib = buildCMake(b, wamr_root, target);
-
-    wasm_export_bindgen.step.dependOn(&vmlib.step);
+    const cmake_step = buildCMake(b, wamr_root, target);
 
     const wamr_module = b.addModule("wamr", .{
         .root_source_file = b.path("src/bindings.zig"),
@@ -56,11 +54,13 @@ pub fn build(b: *std.Build) !void {
     wamr_module.addImport("wasm_c_api", wasm_c_bindgen.createModule());
     wamr_module.addImport("bh_read_file", bh_reader_bindgen.createModule());
 
-    wamr_module.addLibraryPath(b.path(".zig-cache"));
+    const lib_path = b.path(".zig-cache/MinSizeRel");
 
-    wamr_module.linkSystemLibrary("vmlib", .{
-        .use_pkg_config = .no,
-    });
+    wamr_module.addLibraryPath(lib_path);
+
+    wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
+
+    wasm_export_bindgen.step.dependOn(&cmake_step.step);
 
     buildTest(b, wamr_module);
 }
