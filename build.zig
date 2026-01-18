@@ -69,7 +69,7 @@ pub fn build(b: *std.Build) !void {
         wamr_module.linkSystemLibrary("userenv", .{});
         wamr_module.linkSystemLibrary("advapi32", .{});
         wamr_module.linkSystemLibrary("uuid", .{});
-        wamr_module.linkSystemLibrary("pathcch", .{});
+        wamr_module.linkSystemLibrary("Pathcch", .{});
     } else wamr_module.addLibraryPath(b.path(".zig-cache"));
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
