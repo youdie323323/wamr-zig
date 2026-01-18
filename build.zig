@@ -1,7 +1,17 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{});
+    // 1. Windowsの場合はMSVC ABIを強制するロジックを追加
+    // これにより、ZigがMinGW(.a)ではなくMSVC(.lib)のライブラリを探すようになります。
+    var target_query = std.Target.Query.parse(
+        b.option([]const u8, "target", "The CPU architecture, OS, and ABI to build for") orelse "native",
+    ) catch unreachable;
+
+    if (target_query.os_tag == .windows and target_query.abi == null) {
+        target_query.abi = .msvc;
+    }
+    const target = b.resolveTargetQuery(target_query);
+
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
     const wamr_dep = b.dependency("wamr", .{});
@@ -33,12 +43,10 @@ pub fn build(b: *std.Build) !void {
 
     {
         const os_tag_name = @tagName(target.result.os.tag);
-
         bh_reader_bindgen.addIncludePath(wamr_root.path(
             b,
             b.fmt("core/shared/platform/{s}", .{os_tag_name}),
         ));
-
         bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/platform/include"));
     }
 
@@ -62,14 +70,19 @@ pub fn build(b: *std.Build) !void {
     wamr_module.addImport("bh_read_file", bh_reader_bindgen.createModule());
 
     if (target.result.os.tag == .windows) {
+        // CMakeの出力先パス
         wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
+        // MSVCライブラリのリンク (MSVC ABIなら .lib が自動的に解決されます)
         wamr_module.linkSystemLibrary("ws2_32", .{});
         wamr_module.linkSystemLibrary("bcrypt", .{});
         wamr_module.linkSystemLibrary("userenv", .{});
         wamr_module.linkSystemLibrary("advapi32", .{});
-        wamr_module.linkSystemLibrary("uuid", .{});
-    } else wamr_module.addLibraryPath(b.path(".zig-cache"));
+        // uuidはMSVC SDKに含まれるため、パス指定なしでリンク可能
+        wamr_module.linkSystemLibrary("uuid", .{}); 
+    } else {
+        wamr_module.addLibraryPath(b.path(".zig-cache"));
+    }
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
 
@@ -83,24 +96,28 @@ fn buildCMake(
     build_type: []const u8,
 ) *std.Build.Step.Run {
     const cache_path = b.path(".zig-cache");
-
     const cmake_config = b.addSystemCommand(&.{"cmake"});
 
     cmake_config.addArg(b.fmt("-DCMAKE_BUILD_TYPE={s}", .{build_type}));
     cmake_config.addArg("-DWAMR_BUILD_AOT=OFF");
-    cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF");
+    // WAMR_BUILD_DISASSEMBLERは警告が出ていたので削除しても良いですが、念のため残すか確認してください
+    // cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF"); 
     cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF");
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
     if (target.result.os.tag == .windows) {
+        // 2. ランタイム設定の修正
+        // Zigのlink_libc=trueはデフォルトで動的ランタイム(MD/MDd)を使用します。
+        // CMake側もそれに合わせることで、リンクエラー(MSVCRTD.lib vs libcmt.libなど)を防ぎます。
         if (std.mem.eql(u8, build_type, "Debug")) {
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug");
-            cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /MTd /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL"); // /MDd
+            // /MTd を削除し、/MDd 相当にします
+            cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         } else {
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded");
-            cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /MT /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL"); // /MD
+            // /MT を削除し、/MD 相当にします
+            cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         }
-
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
     }
 
@@ -110,7 +127,6 @@ fn buildCMake(
     const cpu_count = std.Thread.getCpuCount() catch 1;
 
     const cmake_build = b.addSystemCommand(&.{"cmake"});
-
     cmake_build.addArg("--build");
     cmake_build.addDirectoryArg(cache_path);
 
@@ -131,12 +147,10 @@ fn buildTest(b: *std.Build, wamr_module: *std.Build.Module) void {
     const lib_unit_tests = b.addTest(.{
         .root_module = wamr_module,
     });
-
-    lib_unit_tests.root_module.addImport("wamr", wamr_module);
+    // テストでもWAMRモジュール自身への参照が必要な場合
+    // lib_unit_tests.root_module.addImport("wamr", wamr_module); 
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
     const test_step = b.step("test", "Run unit tests");
-
     test_step.dependOn(&run_lib_unit_tests.step);
 }
