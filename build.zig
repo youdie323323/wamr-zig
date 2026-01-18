@@ -41,7 +41,7 @@ pub fn build(b: *std.Build) !void {
         bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/platform/include"));
     }
 
-    const vmlib = buildCMake(b, wamr_root);
+    const vmlib = buildCMake(b, wamr_root, target);
 
     wasm_export_bindgen.step.dependOn(&vmlib.step);
 
@@ -65,7 +65,7 @@ pub fn build(b: *std.Build) !void {
     buildTest(b, wamr_module);
 }
 
-fn buildCMake(b: *std.Build, dependency: std.Build.LazyPath) *std.Build.Step.Run {
+fn buildCMake(b: *std.Build, dependency: std.Build.LazyPath, target: std.Build.ResolvedTarget) *std.Build.Step.Run {
     const cache_path = b.path(".zig-cache");
 
     const cmake_config = b.addSystemCommand(&.{"cmake"});
@@ -73,8 +73,10 @@ fn buildCMake(b: *std.Build, dependency: std.Build.LazyPath) *std.Build.Step.Run
     cmake_config.addArg("-DCMAKE_BUILD_TYPE=MinSizeRel");
     cmake_config.addArg("-DWAMR_BUILD_AOT=OFF");
     cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF");
-    cmake_config.addArg("-DCMAKE_C_FLAGS=/FS");
-    cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
+
+    if (target.result.os.tag == .windows)
+        cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /Dalignof=_Alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
+
     cmake_config.addPrefixedDirectoryArg("-S", dependency);
     cmake_config.addPrefixedDirectoryArg("-B", cache_path);
 
