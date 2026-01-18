@@ -8,7 +8,6 @@ pub fn build(b: *std.Build) !void {
 
     const wamr_root = wamr_dep.path("");
 
-    // TODO: https://github.com/ziglang/zig/issues/20630
     const wasm_c_bindgen = b.addTranslateC(.{
         .root_source_file = wamr_root.path(b, "core/iwasm/include/wasm_c_api.h"),
         .target = target,
@@ -20,6 +19,9 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
     });
+
+    wasm_export_bindgen.defineCMacro("WASM_ENABLE_INTERP", "1");
+    wasm_export_bindgen.defineCMacro("WASM_ENABLE_AOT", "0");
 
     const bh_reader_bindgen = b.addTranslateC(.{
         .root_source_file = wamr_root.path(b, "core/shared/utils/uncommon/bh_read_file.c"),
@@ -41,7 +43,12 @@ pub fn build(b: *std.Build) !void {
         bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/platform/include"));
     }
 
-    const iwasm = buildCMake(b, wamr_root, target);
+    const cmake_build_type = switch (optimize) {
+        .Debug => "Debug",
+        else => "MinSizeRel",
+    };
+
+    const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
 
     wasm_export_bindgen.step.dependOn(&iwasm.step);
 
@@ -56,22 +63,37 @@ pub fn build(b: *std.Build) !void {
     wamr_module.addImport("wasm_c_api", wasm_c_bindgen.createModule());
     wamr_module.addImport("bh_read_file", bh_reader_bindgen.createModule());
 
-    wamr_module.addLibraryPath(b.path(".zig-cache"));
+    if (target.result.os.tag == .windows) {
+        wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
+
+        wamr_module.linkSystemLibrary("ws2_32", .{});
+        wamr_module.linkSystemLibrary("bcrypt", .{});
+        wamr_module.linkSystemLibrary("userenv", .{});
+        wamr_module.linkSystemLibrary("advapi32", .{});
+    } else wamr_module.addLibraryPath(b.path(".zig-cache"));
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
 
     buildTest(b, wamr_module);
 }
 
-fn buildCMake(b: *std.Build, dependency: std.Build.LazyPath, target: std.Build.ResolvedTarget) *std.Build.Step.Run {
+fn buildCMake(
+    b: *std.Build,
+    dependency: std.Build.LazyPath,
+    target: std.Build.ResolvedTarget,
+    build_type: []const u8,
+) *std.Build.Step.Run {
     const cache_path = b.path(".zig-cache");
 
     const cmake_config = b.addSystemCommand(&.{"cmake"});
 
-    cmake_config.addArg("-DCMAKE_BUILD_TYPE=MinSizeRel");
+    // Configure step
+    cmake_config.addArg(b.fmt("-DCMAKE_BUILD_TYPE={s}", .{build_type}));
     cmake_config.addArg("-DWAMR_BUILD_AOT=OFF");
     cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF");
     cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF");
+
+    cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
     if (target.result.os.tag == .windows) {
         cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
@@ -83,10 +105,16 @@ fn buildCMake(b: *std.Build, dependency: std.Build.LazyPath, target: std.Build.R
 
     const cpu_count = std.Thread.getCpuCount() catch 1;
 
+    // Build step
     const cmake_build = b.addSystemCommand(&.{"cmake"});
-
     cmake_build.addArg("--build");
     cmake_build.addDirectoryArg(cache_path);
+
+    if (target.result.os.tag == .windows) {
+        cmake_build.addArg("--config");
+        cmake_build.addArg(build_type);
+    }
+
     cmake_build.addArg("--parallel");
     cmake_build.addArg(b.fmt("{d}", .{cpu_count}));
 
