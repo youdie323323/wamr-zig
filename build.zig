@@ -1,11 +1,9 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
-    // 1. Windowsの場合はMSVC ABIを強制するロジックを追加
-    // これにより、ZigがMinGW(.a)ではなくMSVC(.lib)のライブラリを探すようになります。
-    var target_query = std.Target.Query.parse(
-        b.option([]const u8, "target", "The CPU architecture, OS, and ABI to build for") orelse "native",
-    ) catch unreachable;
+    var target_query = std.Target.Query.parse(.{
+        .arch_os_abi = b.option([]const u8, "target", "The CPU architecture, OS, and ABI to build for") orelse "native",
+    }) catch unreachable;
 
     if (target_query.os_tag == .windows and target_query.abi == null) {
         target_query.abi = .msvc;
@@ -79,7 +77,7 @@ pub fn build(b: *std.Build) !void {
         wamr_module.linkSystemLibrary("userenv", .{});
         wamr_module.linkSystemLibrary("advapi32", .{});
         // uuidはMSVC SDKに含まれるため、パス指定なしでリンク可能
-        wamr_module.linkSystemLibrary("uuid", .{}); 
+        wamr_module.linkSystemLibrary("uuid", .{});
     } else {
         wamr_module.addLibraryPath(b.path(".zig-cache"));
     }
@@ -101,7 +99,7 @@ fn buildCMake(
     cmake_config.addArg(b.fmt("-DCMAKE_BUILD_TYPE={s}", .{build_type}));
     cmake_config.addArg("-DWAMR_BUILD_AOT=OFF");
     // WAMR_BUILD_DISASSEMBLERは警告が出ていたので削除しても良いですが、念のため残すか確認してください
-    // cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF"); 
+    // cmake_config.addArg("-DWAMR_BUILD_DISASSEMBLER=OFF");
     cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF");
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
@@ -148,7 +146,7 @@ fn buildTest(b: *std.Build, wamr_module: *std.Build.Module) void {
         .root_module = wamr_module,
     });
     // テストでもWAMRモジュール自身への参照が必要な場合
-    // lib_unit_tests.root_module.addImport("wamr", wamr_module); 
+    // lib_unit_tests.root_module.addImport("wamr", wamr_module);
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
     const test_step = b.step("test", "Run unit tests");
