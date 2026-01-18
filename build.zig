@@ -41,6 +41,10 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
+    if (target.result.os.tag == .windows) {
+        bh_reader_bindgen.defineCMacro("WIN32_LEAN_AND_MEAN", "1");
+    }
+
     bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils/uncommon"));
     bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils"));
 
