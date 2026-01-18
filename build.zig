@@ -76,7 +76,7 @@ fn buildCMake(b: *std.Build, dependency: std.Build.LazyPath, target: std.Build.R
     cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF"); // Disable SIMD as SIMDe doesn't support Windows
 
     if (target.result.os.tag == .windows) {
-        cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /Dalignof=_Alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
+        cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
     }
 
