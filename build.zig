@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
     const wamr_dep = b.dependency("wamr", .{});
     const wamr_root = wamr_dep.path("");
@@ -69,7 +69,6 @@ pub fn build(b: *std.Build) !void {
         wamr_module.linkSystemLibrary("userenv", .{});
         wamr_module.linkSystemLibrary("advapi32", .{});
         wamr_module.linkSystemLibrary("uuid", .{});
-        wamr_module.linkSystemLibrary("Pathcch", .{});
     } else wamr_module.addLibraryPath(b.path(".zig-cache"));
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
