@@ -130,7 +130,7 @@ pub fn build(b: *std.Build) !void {
 
         // Example for VS 2022 Build Tools and Windows SDK 10.0.26100.0
 
-        const msvc_path = "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.40.33807";
+        const msvc_path = "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717";
 
         const sdk_path = "C:/Program Files (x86)/Windows Kits/10";
 
@@ -146,17 +146,17 @@ pub fn build(b: *std.Build) !void {
 
         const runtime_suffix = if (optimize == .Debug) "d" else "";
 
-        wamr_module.linkSystemLibraryName(b.fmt("msvcrt{s}.lib", .{runtime_suffix}));
+        wamr_module.linkSystemLibrary(b.fmt("msvcrt{s}.lib", .{runtime_suffix}), .{});
 
-        wamr_module.linkSystemLibraryName(b.fmt("vcruntime{s}.lib", .{runtime_suffix}));
+        wamr_module.linkSystemLibrary(b.fmt("vcruntime{s}.lib", .{runtime_suffix}), .{});
 
-        wamr_module.linkSystemLibraryName(b.fmt("ucrt{s}.lib", .{runtime_suffix}));
+        wamr_module.linkSystemLibrary(b.fmt("ucrt{s}.lib", .{runtime_suffix}), .{});
 
-        wamr_module.linkSystemLibraryName("oldnames.lib");
+        wamr_module.linkSystemLibrary("oldnames.lib", .{});
 
-        wamr_module.linkSystemLibraryName("uuid.lib");
+        wamr_module.linkSystemLibrary("uuid.lib", .{});
 
-        wamr_module.linkSystemLibraryName("pathcch.lib");
+        wamr_module.linkSystemLibrary("pathcch.lib", .{});
 
         // Other system libraries
 
