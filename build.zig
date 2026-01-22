@@ -47,7 +47,6 @@ pub fn build(b: *std.Build) !void {
 
         bh_reader_bindgen.addIncludePath(wamr_root.path(
             b,
-
             b.fmt("core/shared/platform/{s}", .{os_tag_name}),
         ));
 
