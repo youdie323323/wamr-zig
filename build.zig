@@ -9,11 +9,7 @@ const sdk_path = "C:/Program Files (x86)/Windows Kits/10";
 const sdk_version = "10.0.26100.0";
 
 pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{
-        .default_target = .{
-            .abi = .msvc,
-        },
-    });
+    const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
     const wamr_dep = b.dependency("wamr", .{});
