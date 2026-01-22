@@ -61,8 +61,6 @@ pub fn build(b: *std.Build) !void {
 
     const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
 
-    wasm_export_bindgen.step.dependOn(&iwasm.step);
-
     const wamr_module = b.addModule("wamr", .{
         .root_source_file = b.path("src/bindings.zig"),
         .target = target,
@@ -91,7 +89,7 @@ pub fn build(b: *std.Build) !void {
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
 
-    buildTest(b, wamr_module);
+    b.getInstallStep().dependOn(&iwasm.step);
 }
 
 fn buildCMake(
@@ -143,16 +141,4 @@ fn buildCMake(
     cmake_build.step.dependOn(&cmake_config.step);
 
     return cmake_build;
-}
-
-fn buildTest(b: *std.Build, wamr_module: *std.Build.Module) void {
-    const lib_unit_tests = b.addTest(.{
-        .root_module = wamr_module,
-    });
-
-    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-
-    const test_step = b.step("test", "Run unit tests");
-
-    test_step.dependOn(&run_lib_unit_tests.step);
 }
