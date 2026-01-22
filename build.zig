@@ -1,5 +1,4 @@
 const std = @import("std");
-
 const builtin = @import("builtin");
 
 const msvc_path = "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717";
@@ -9,21 +8,8 @@ const sdk_path = "C:/Program Files (x86)/Windows Kits/10";
 const sdk_version = "10.0.26100.0";
 
 pub fn build(b: *std.Build) !void {
-    var target_query = std.Target.Query.parse(.{
-        .arch_os_abi = b.option([]const u8, "target", "The CPU architecture, OS, and ABI to build for") orelse "native",
-    }) catch unreachable;
-
-    const is_windows =
-        if (target_query.os_tag) |tag|
-            tag == .windows
-        else
-            builtin.os.tag == .windows;
-
-    if (is_windows and target_query.abi == null)
-        target_query.abi = .msvc;
-
-    const target = b.resolveTargetQuery(target_query);
-    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
 
     const wamr_dep = b.dependency("wamr", .{});
     const wamr_root = wamr_dep.path("");
@@ -60,7 +46,6 @@ pub fn build(b: *std.Build) !void {
 
         bh_reader_bindgen.addIncludePath(wamr_root.path(
             b,
-
             b.fmt("core/shared/platform/{s}", .{os_tag_name}),
         ));
 
@@ -69,7 +54,6 @@ pub fn build(b: *std.Build) !void {
 
     const cmake_build_type = switch (optimize) {
         .Debug => "Debug",
-
         else => "MinSizeRel",
     };
 
@@ -91,12 +75,6 @@ pub fn build(b: *std.Build) !void {
     if (target.result.os.tag == .windows) {
         wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
-        wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/lib/x64", .{msvc_path}) });
-        wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/Lib/{s}/um/x64", .{ sdk_path, sdk_version }) });
-        wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/Lib/{s}/ucrt/x64", .{ sdk_path, sdk_version }) });
-
-        wamr_module.linkSystemLibrary("uuid", .{});
-        wamr_module.linkSystemLibrary("pathcch", .{});
         wamr_module.linkSystemLibrary("ws2_32", .{});
         wamr_module.linkSystemLibrary("bcrypt", .{});
         wamr_module.linkSystemLibrary("userenv", .{});
@@ -127,9 +105,9 @@ fn buildCMake(
 
     if (target.result.os.tag == .windows) {
         if (std.mem.eql(u8, build_type, "Debug"))
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL")
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug")
         else
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL");
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded");
 
         cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
