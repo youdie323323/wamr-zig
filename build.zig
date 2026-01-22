@@ -70,10 +70,6 @@ pub fn build(b: *std.Build) !void {
         .link_libc = true,
     });
 
-    wamr_module.addIncludePath(wamr_root.path(b, "core/iwasm/include"));
-    wamr_module.addIncludePath(wamr_root.path(b, "core/shared/utils"));
-    wamr_module.addIncludePath(wamr_root.path(b, "core/shared/utils/uncommon"));
-
     wamr_module.addImport("wasm_export", wasm_export_bindgen.createModule());
     wamr_module.addImport("wasm_c_api", wasm_c_bindgen.createModule());
     wamr_module.addImport("bh_read_file", bh_reader_bindgen.createModule());
