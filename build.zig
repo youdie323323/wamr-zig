@@ -61,6 +61,8 @@ pub fn build(b: *std.Build) !void {
 
     const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
 
+    wasm_export_bindgen.step.dependOn(&iwasm.step);
+
     b.getInstallStep().dependOn(&iwasm.step);
 
     const wamr_module = b.addModule("wamr", .{
