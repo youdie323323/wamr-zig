@@ -9,20 +9,7 @@ const sdk_path = "C:/Program Files (x86)/Windows Kits/10";
 const sdk_version = "10.0.26100.0";
 
 pub fn build(b: *std.Build) !void {
-    var target_query = std.Target.Query.parse(.{
-        .arch_os_abi = b.option([]const u8, "target", "The CPU architecture, OS, and ABI to build for") orelse "native",
-    }) catch unreachable;
-
-    const is_windows =
-        if (target_query.os_tag) |tag|
-            tag == .windows
-        else
-            builtin.os.tag == .windows;
-
-    if (is_windows and target_query.abi == null)
-        target_query.abi = .msvc;
-
-    const target = b.resolveTargetQuery(target_query);
+    const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
     const wamr_dep = b.dependency("wamr", .{});
