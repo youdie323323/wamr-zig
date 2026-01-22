@@ -102,9 +102,9 @@ pub fn build(b: *std.Build) !void {
             else
                 "";
 
-        wamr_module.linkSystemLibrary(b.fmt("msvcrt{s}.lib", .{runtime_suffix}), .{});
-        wamr_module.linkSystemLibrary(b.fmt("vcruntime{s}.lib", .{runtime_suffix}), .{});
-        wamr_module.linkSystemLibrary(b.fmt("ucrt{s}.lib", .{runtime_suffix}), .{});
+        wamr_module.linkSystemLibrary(b.fmt("msvcrt{s}", .{runtime_suffix}), .{});
+        wamr_module.linkSystemLibrary(b.fmt("vcruntime{s}", .{runtime_suffix}), .{});
+        wamr_module.linkSystemLibrary(b.fmt("ucrt{s}", .{runtime_suffix}), .{});
 
         wamr_module.linkSystemLibrary("oldnames.lib", .{});
         wamr_module.linkSystemLibrary("uuid.lib", .{});
