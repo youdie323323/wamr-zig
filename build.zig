@@ -59,9 +59,7 @@ pub fn build(b: *std.Build) !void {
         else => "MinSizeRel",
     };
 
-    const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
-
-    wasm_export_bindgen.step.dependOn(&iwasm.step);
+    buildCMake(b, wamr_root, target, cmake_build_type);
 
     const wamr_module = b.addModule("wamr", .{
         .root_source_file = b.path("src/bindings.zig"),
@@ -99,7 +97,7 @@ fn buildCMake(
     root: std.Build.LazyPath,
     target: std.Build.ResolvedTarget,
     build_type: []const u8,
-) *std.Build.Step.Run {
+) void {
     const cache_path = b.path(".zig-cache");
 
     const cmake_config = b.addSystemCommand(&.{"cmake"});
@@ -141,8 +139,6 @@ fn buildCMake(
     cmake_build.addArg(b.fmt("{d}", .{cpu_count}));
 
     cmake_build.step.dependOn(&cmake_config.step);
-
-    return cmake_build;
 }
 
 fn buildTest(b: *std.Build, wamr_module: *std.Build.Module) void {
