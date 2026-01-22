@@ -106,9 +106,9 @@ pub fn build(b: *std.Build) !void {
         wamr_module.linkSystemLibrary(b.fmt("vcruntime{s}", .{runtime_suffix}), .{});
         wamr_module.linkSystemLibrary(b.fmt("ucrt{s}", .{runtime_suffix}), .{});
 
-        wamr_module.linkSystemLibrary("oldnames.lib", .{});
-        wamr_module.linkSystemLibrary("uuid.lib", .{});
-        wamr_module.linkSystemLibrary("pathcch.lib", .{});
+        wamr_module.linkSystemLibrary("oldnames", .{});
+        wamr_module.linkSystemLibrary("uuid", .{});
+        wamr_module.linkSystemLibrary("pathcch", .{});
 
         // Other system libraries
 
