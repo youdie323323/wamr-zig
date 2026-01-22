@@ -91,6 +91,18 @@ pub fn build(b: *std.Build) !void {
     if (target.result.os.tag == .windows) {
         wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
+        const runtime_suffix =
+            if (optimize == .Debug)
+                "d"
+            else
+                "";
+
+        wamr_module.linkSystemLibrary(b.fmt("msvcrt{s}", .{runtime_suffix}), .{});
+
+        wamr_module.linkSystemLibrary("oldnames", .{});
+        wamr_module.linkSystemLibrary("uuid", .{});
+        wamr_module.linkSystemLibrary("pathcch", .{});
+
         wamr_module.linkSystemLibrary("ws2_32", .{});
         wamr_module.linkSystemLibrary("bcrypt", .{});
         wamr_module.linkSystemLibrary("userenv", .{});
