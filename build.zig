@@ -61,6 +61,8 @@ pub fn build(b: *std.Build) !void {
 
     const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
 
+    b.getInstallStep().dependOn(&iwasm.step);
+
     const wamr_module = b.addModule("wamr", .{
         .root_source_file = b.path("src/bindings.zig"),
         .target = target,
@@ -88,8 +90,6 @@ pub fn build(b: *std.Build) !void {
     } else wamr_module.addLibraryPath(b.path(".zig-cache"));
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
-
-    b.getInstallStep().dependOn(&iwasm.step);
 }
 
 fn buildCMake(
