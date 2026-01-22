@@ -95,18 +95,8 @@ pub fn build(b: *std.Build) !void {
         wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/Lib/{s}/um/x64", .{ sdk_path, sdk_version }) });
         wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/Lib/{s}/ucrt/x64", .{ sdk_path, sdk_version }) });
 
-        const runtime_suffix =
-            if (optimize == .Debug)
-                "d"
-            else
-                "";
-
-        wamr_module.linkSystemLibrary(b.fmt("msvcrt{s}", .{runtime_suffix}), .{});
-
-        wamr_module.linkSystemLibrary("oldnames", .{});
         wamr_module.linkSystemLibrary("uuid", .{});
         wamr_module.linkSystemLibrary("pathcch", .{});
-
         wamr_module.linkSystemLibrary("ws2_32", .{});
         wamr_module.linkSystemLibrary("bcrypt", .{});
         wamr_module.linkSystemLibrary("userenv", .{});
