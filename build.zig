@@ -10,7 +10,7 @@ const sdk_version = "10.0.26100.0";
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
+    const optimize = b.standardOptimizeOption(.{});
 
     const wamr_dep = b.dependency("wamr", .{});
     const wamr_root = wamr_dep.path("");
