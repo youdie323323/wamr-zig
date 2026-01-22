@@ -81,7 +81,7 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("src/bindings.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = false,
+        .link_libc = true,
     });
 
     wamr_module.addImport("wasm_export", wasm_export_bindgen.createModule());
@@ -92,26 +92,11 @@ pub fn build(b: *std.Build) !void {
         wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
         wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/lib/x64", .{msvc_path}) });
-
         wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/Lib/{s}/um/x64", .{ sdk_path, sdk_version }) });
         wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/Lib/{s}/ucrt/x64", .{ sdk_path, sdk_version }) });
 
-        const runtime_suffix =
-            if (optimize == .Debug)
-                "d"
-            else
-                "";
-
-        wamr_module.linkSystemLibrary(b.fmt("msvcrt{s}", .{runtime_suffix}), .{});
-        wamr_module.linkSystemLibrary(b.fmt("vcruntime{s}", .{runtime_suffix}), .{});
-        wamr_module.linkSystemLibrary(b.fmt("ucrt{s}", .{runtime_suffix}), .{});
-
-        wamr_module.linkSystemLibrary("oldnames", .{});
         wamr_module.linkSystemLibrary("uuid", .{});
         wamr_module.linkSystemLibrary("pathcch", .{});
-
-        // Other system libraries
-
         wamr_module.linkSystemLibrary("ws2_32", .{});
         wamr_module.linkSystemLibrary("bcrypt", .{});
         wamr_module.linkSystemLibrary("userenv", .{});
