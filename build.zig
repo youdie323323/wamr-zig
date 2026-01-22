@@ -96,7 +96,7 @@ pub fn build(b: *std.Build) !void {
 
 fn buildCMake(
     b: *std.Build,
-    dependency: std.Build.LazyPath,
+    root: std.Build.LazyPath,
     target: std.Build.ResolvedTarget,
     build_type: []const u8,
 ) *std.Build.Step.Run {
@@ -121,7 +121,7 @@ fn buildCMake(
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
     }
 
-    cmake_config.addPrefixedDirectoryArg("-S", dependency);
+    cmake_config.addPrefixedDirectoryArg("-S", root);
     cmake_config.addPrefixedDirectoryArg("-B", cache_path);
 
     const cpu_count = std.Thread.getCpuCount() catch 1;
