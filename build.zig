@@ -1,9 +1,28 @@
 const std = @import("std");
 
+const builtin = @import("builtin");
+
+const msvc_path = "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717";
+
+const sdk_path = "C:/Program Files (x86)/Windows Kits/10";
+
+const sdk_version = "10.0.26100.0";
+
 pub fn build(b: *std.Build) !void {
-    // 【重要】手動解析をやめ、標準のオプション機能を使う
-    // これにより no/build.zig から渡された .target (MSVC) が正しく適用されます
-    const target = b.standardTargetOptions(.{});
+    var target_query = std.Target.Query.parse(.{
+        .arch_os_abi = b.option([]const u8, "target", "The CPU architecture, OS, and ABI to build for") orelse "native",
+    }) catch unreachable;
+
+    const is_windows =
+        if (target_query.os_tag) |tag|
+            tag == .windows
+        else
+            builtin.os.tag == .windows;
+
+    if (is_windows and target_query.abi == null)
+        target_query.abi = .msvc;
+
+    const target = b.resolveTargetQuery(target_query);
     const optimize = b.standardOptimizeOption(.{ .preferred_optimize_mode = .ReleaseSmall });
 
     const wamr_dep = b.dependency("wamr", .{});
@@ -30,7 +49,6 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    // target.result で OS を判定
     if (target.result.os.tag == .windows)
         bh_reader_bindgen.defineCMacro("WIN32_LEAN_AND_MEAN", "1");
 
@@ -39,15 +57,19 @@ pub fn build(b: *std.Build) !void {
 
     {
         const os_tag_name = @tagName(target.result.os.tag);
+
         bh_reader_bindgen.addIncludePath(wamr_root.path(
             b,
+
             b.fmt("core/shared/platform/{s}", .{os_tag_name}),
         ));
+
         bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/platform/include"));
     }
 
     const cmake_build_type = switch (optimize) {
         .Debug => "Debug",
+
         else => "MinSizeRel",
     };
 
@@ -59,35 +81,26 @@ pub fn build(b: *std.Build) !void {
         .root_source_file = b.path("src/bindings.zig"),
         .target = target,
         .optimize = optimize,
-        .link_libc = true, // ここで LibC (MSVC) を有効化
+        .link_libc = true,
     });
 
     wamr_module.addImport("wasm_export", wasm_export_bindgen.createModule());
     wamr_module.addImport("wasm_c_api", wasm_c_bindgen.createModule());
     wamr_module.addImport("bh_read_file", bh_reader_bindgen.createModule());
 
-    // CMake の出力先ライブラリパスを追加
     if (target.result.os.tag == .windows) {
         wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
-        // 必要なシステムライブラリのみリンク (MinGW系が混ざらないように注意)
         wamr_module.linkSystemLibrary("ws2_32", .{});
+        wamr_module.linkSystemLibrary("bcrypt", .{});
         wamr_module.linkSystemLibrary("userenv", .{});
         wamr_module.linkSystemLibrary("advapi32", .{});
-        wamr_module.linkSystemLibrary("bcrypt", .{});
-        // MSVC SDK のパスや msvcrt 等の手動リンクはすべて削除 (Zig が自動解決します)
-    } else {
-        wamr_module.addLibraryPath(b.path(".zig-cache"));
-    }
+    } else wamr_module.addLibraryPath(b.path(".zig-cache"));
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
 
     buildTest(b, wamr_module);
 }
-
-// buildCMake 関数や buildTest 関数は変更不要（以前と同じでOK）ですが、
-// 念のため buildCMake の引数 target は std.Build.ResolvedTarget になっています。
-// 以前のコードのままで大丈夫です。
 
 fn buildCMake(
     b: *std.Build,
@@ -98,17 +111,19 @@ fn buildCMake(
     const cache_path = b.path(".zig-cache");
 
     const cmake_config = b.addSystemCommand(&.{"cmake"});
+
     cmake_config.addArg(b.fmt("-DCMAKE_BUILD_TYPE={s}", .{build_type}));
+
     cmake_config.addArg("-DWAMR_BUILD_AOT=OFF");
     cmake_config.addArg("-DWAMR_BUILD_SIMD=OFF");
+
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
     if (target.result.os.tag == .windows) {
-        // MSVC ランタイムの設定
         if (std.mem.eql(u8, build_type, "Debug"))
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL")
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug")
         else
-            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL");
+            cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded");
 
         cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
         cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
@@ -118,8 +133,11 @@ fn buildCMake(
     cmake_config.addPrefixedDirectoryArg("-B", cache_path);
 
     const cpu_count = std.Thread.getCpuCount() catch 1;
+
     const cmake_build = b.addSystemCommand(&.{"cmake"});
+
     cmake_build.addArg("--build");
+
     cmake_build.addDirectoryArg(cache_path);
 
     if (target.result.os.tag == .windows) {
@@ -129,6 +147,7 @@ fn buildCMake(
 
     cmake_build.addArg("--parallel");
     cmake_build.addArg(b.fmt("{d}", .{cpu_count}));
+
     cmake_build.step.dependOn(&cmake_config.step);
 
     return cmake_build;
@@ -138,7 +157,10 @@ fn buildTest(b: *std.Build, wamr_module: *std.Build.Module) void {
     const lib_unit_tests = b.addTest(.{
         .root_module = wamr_module,
     });
+
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+
     const test_step = b.step("test", "Run unit tests");
+
     test_step.dependOn(&run_lib_unit_tests.step);
 }
