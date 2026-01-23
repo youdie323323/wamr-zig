@@ -103,7 +103,7 @@ fn buildCMake(
 
     cmake_config.addArg(b.fmt("-DCMAKE_BUILD_TYPE={s}", .{build_type}));
 
-    cmake_config.addArg("-DWAMR_BUILD_AOT=OFF");
+    cmake_config.addArg("-DWAMR_BUILD_AOT=1");
 
     cmake_config.addArg("-DWAMR_BUILD_SIMD=1");
     cmake_config.addArg("-DWAMR_BUILD_REF_TYPES=1");
