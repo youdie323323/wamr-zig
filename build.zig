@@ -129,7 +129,6 @@ fn buildCMake(
     const cmake_build = b.addSystemCommand(&.{"cmake"});
 
     cmake_build.addArg("--build");
-
     cmake_build.addDirectoryArg(cache_path);
 
     if (target.result.os.tag == .windows) {
