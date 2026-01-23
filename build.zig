@@ -28,7 +28,7 @@ pub fn build(b: *std.Build) !void {
     });
 
     wasm_export_bindgen.defineCMacro("WASM_ENABLE_INTERP", "1");
-    wasm_export_bindgen.defineCMacro("WASM_ENABLE_AOT", "0");
+    wasm_export_bindgen.defineCMacro("WASM_ENABLE_AOT", "1");
 
     const bh_reader_bindgen = b.addTranslateC(.{
         .root_source_file = wamr_root.path(b, "core/shared/utils/uncommon/bh_read_file.c"),
@@ -103,11 +103,12 @@ fn buildCMake(
 
     cmake_config.addArg(b.fmt("-DCMAKE_BUILD_TYPE={s}", .{build_type}));
 
-    cmake_config.addArg("-DWAMR_BUILD_AOT=0");
-
+    cmake_config.addArg("-DWAMR_BUILD_AOT=1");
     cmake_config.addArg("-DWAMR_BUILD_SIMD=1");
     cmake_config.addArg("-DWAMR_BUILD_REF_TYPES=1");
     cmake_config.addArg("-DWAMR_BUILD_BULK_MEMORY=1");
+
+    cmake_config.addArg("-DCMAKE_POLICY_DEFAULT_CMP0169=OLD");
 
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
