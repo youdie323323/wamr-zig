@@ -108,6 +108,8 @@ fn buildCMake(
     cmake_config.addArg("-DWAMR_BUILD_REF_TYPES=1");
     cmake_config.addArg("-DWAMR_BUILD_BULK_MEMORY=1");
 
+    cmake_config.addArg("-DLLVM_DIR=C:/Program Files/LLVM/lib/cmake/llvm");
+
     cmake_config.addArg("-DCMAKE_POLICY_DEFAULT_CMP0169=OLD");
 
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
