@@ -5,8 +5,8 @@
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .wamr = .{
-            .url = "git+https://github.com/bytecodealliance/wasm-micro-runtime#520410d806fbc43a857f40aee86b61e71cc03e82",
-            .hash = "12202b3bb0459f7bd8349f24ceb70872e867ab06e23be2d79f49796fde451a677a04",
+            .url = "git+https://github.com/bytecodealliance/wasm-micro-runtime#WAMR-2.4.4",
+            .hash = "12205268707956bc176f4833f0cb320890d3b4cb38f245652cad5fff7648496d2d1c",
         },
     },
     .paths = .{
