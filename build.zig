@@ -90,7 +90,6 @@ pub fn build(b: *std.Build) !void {
         wamr_module.linkSystemLibrary("ucrt", .{});
         wamr_module.linkSystemLibrary("vcruntime", .{});
         wamr_module.linkSystemLibrary("msvcrt", .{});
-        wamr_module.linkSystemLibrary("libcmt", .{});
     } else wamr_module.addLibraryPath(b.path(".zig-cache"));
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
