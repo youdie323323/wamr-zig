@@ -37,4 +37,4 @@ jobs:
         with:
           arch: x64
 
-      - run: zig build -Dtarget=${{ matrix.target }} --summary all
+      - run: zig build test -Dtarget=${{ matrix.target }} --summary all
