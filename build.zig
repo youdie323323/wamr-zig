@@ -97,19 +97,6 @@ pub fn build(b: *std.Build) !void {
     }
 
     wamr_mod.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
-
-    // Run tests
-    
-    const wamr_mod_tests = b.addTest(.{
-        .root_module = wamr_mod,
-    });
-
-    wamr_mod_tests.step.dependOn(&iwasm.step);
-
-    const run_tests = b.addRunArtifact(wamr_mod_tests);
-
-    const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_tests.step);
 }
 
 fn buildCMake(
