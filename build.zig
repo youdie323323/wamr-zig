@@ -62,48 +62,54 @@ pub fn build(b: *std.Build) !void {
 
     b.getInstallStep().dependOn(&iwasm.step);
 
-    const wamr_module = b.addModule("wamr", .{
-        .root_source_file = b.path("src/bindings.zig"),
+    const wamr_mod = b.addModule("wamr", .{
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
 
-    wamr_module.addImport("wasm_export", wasm_export_bindgen.createModule());
-    wamr_module.addImport("wasm_c_api", wasm_c_bindgen.createModule());
-    wamr_module.addImport("bh_read_file", bh_reader_bindgen.createModule());
+    wamr_mod.addImport("wasm_export", wasm_export_bindgen.createModule());
+    wamr_mod.addImport("wasm_c_api", wasm_c_bindgen.createModule());
+    wamr_mod.addImport("bh_read_file", bh_reader_bindgen.createModule());
 
     { // Add library
-        wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
+        wamr_mod.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
-        switch (target.result.os.tag) {
-            .windows => {
-                { // Add libraries (requires running on 'x64 Native Tools Command Prompt')
-                    const lib = try process.getEnvVarOwned(b.allocator, "LIB");
-                    defer b.allocator.free(lib);
+        if (target.result.os.tag == .windows) {
+            { // Add libraries (requires running on 'x64 Native Tools Command Prompt')
+                const lib = try process.getEnvVarOwned(b.allocator, "LIB");
+                defer b.allocator.free(lib);
 
-                    var it = mem.tokenizeScalar(u8, lib, ';');
-                    while (it.next()) |path|
-                        if (path.len > 0)
-                            wamr_module.addLibraryPath(.{ .cwd_relative = b.allocator.dupe(u8, path) catch unreachable });
-                }
+                var it = mem.tokenizeScalar(u8, lib, ';');
+                while (it.next()) |path|
+                    if (path.len > 0)
+                        wamr_mod.addLibraryPath(.{ .cwd_relative = b.allocator.dupe(u8, path) catch unreachable });
+            }
 
-                wamr_module.linkSystemLibrary("uuid", .{});
-                wamr_module.linkSystemLibrary("pathcch", .{});
-                wamr_module.linkSystemLibrary("ws2_32", .{});
-                wamr_module.linkSystemLibrary("bcrypt", .{});
-                wamr_module.linkSystemLibrary("userenv", .{});
-                wamr_module.linkSystemLibrary("advapi32", .{});
-            },
-            .linux => {
-                // wamr_module.linkSystemLibrary("pthread", .{});
-                // wamr_module.linkSystemLibrary("dl", .{});
-            },
-            else => undefined,
+            wamr_mod.linkSystemLibrary("uuid", .{});
+            wamr_mod.linkSystemLibrary("pathcch", .{});
+            wamr_mod.linkSystemLibrary("ws2_32", .{});
+            wamr_mod.linkSystemLibrary("bcrypt", .{});
+            wamr_mod.linkSystemLibrary("userenv", .{});
+            wamr_mod.linkSystemLibrary("advapi32", .{});
         }
     }
 
-    wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
+    wamr_mod.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
+
+    // Run tests
+    
+    const wamr_mod_tests = b.addTest(.{
+        .root_module = wamr_mod,
+    });
+
+    wamr_mod_tests.step.dependOn(&iwasm.step);
+
+    const run_tests = b.addRunArtifact(wamr_mod_tests);
+
+    const test_step = b.step("test", "Run tests");
+    test_step.dependOn(&run_tests.step);
 }
 
 fn buildCMake(
