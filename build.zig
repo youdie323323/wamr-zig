@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) !void {
     const wamr_dep = b.dependency("wamr", .{});
     const wamr_root = wamr_dep.path("");
 
-    const wasm_c_bindgen = b.addTranslateC(.{
+    const wasm_c_api_bindgen = b.addTranslateC(.{
         .root_source_file = wamr_root.path(b, "core/iwasm/include/wasm_c_api.h"),
         .target = target,
         .optimize = optimize,
@@ -31,30 +31,30 @@ pub fn build(b: *std.Build) !void {
     wasm_export_bindgen.defineCMacro("WASM_ENABLE_INTERP", "1");
     wasm_export_bindgen.defineCMacro("WASM_ENABLE_AOT", "1");
 
-    const bh_reader_bindgen = b.addTranslateC(.{
+    const bh_read_file_bindgen = b.addTranslateC(.{
         .root_source_file = wamr_root.path(b, "core/shared/utils/uncommon/bh_read_file.c"),
         .target = target,
         .optimize = optimize,
     });
 
     if (target.result.os.tag == .windows)
-        bh_reader_bindgen.defineCMacro("WIN32_LEAN_AND_MEAN", "1");
+        bh_read_file_bindgen.defineCMacro("WIN32_LEAN_AND_MEAN", "1");
 
-    bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils/uncommon"));
-    bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils"));
+    bh_read_file_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils/uncommon"));
+    bh_read_file_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils"));
 
     {
         const os_tag_name = switch (target.result.os.tag) {
             .macos => "darwin",
-            else => @tagName(target.result.os.tag),
+            else => |os_tag| @tagName(os_tag),
         };
 
-        bh_reader_bindgen.addIncludePath(wamr_root.path(
+        bh_read_file_bindgen.addIncludePath(wamr_root.path(
             b,
             b.fmt("core/shared/platform/{s}", .{os_tag_name}),
         ));
 
-        bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/platform/include"));
+        bh_read_file_bindgen.addIncludePath(wamr_root.path(b, "core/shared/platform/include"));
     }
 
     const cmake_build_type = switch (optimize) {
@@ -74,8 +74,8 @@ pub fn build(b: *std.Build) !void {
     });
 
     wamr_mod.addImport("wasm_export", wasm_export_bindgen.createModule());
-    wamr_mod.addImport("wasm_c_api", wasm_c_bindgen.createModule());
-    wamr_mod.addImport("bh_read_file", bh_reader_bindgen.createModule());
+    wamr_mod.addImport("wasm_c_api", wasm_c_api_bindgen.createModule());
+    wamr_mod.addImport("bh_read_file", bh_read_file_bindgen.createModule());
 
     { // Add library
         wamr_mod.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
@@ -102,18 +102,18 @@ pub fn build(b: *std.Build) !void {
 
     wamr_mod.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
 
-    // Add test
+    { // Add test
+        const wamr_test = b.addTest(.{
+            .root_module = wamr_mod,
+        });
 
-    const wamr_test = b.addTest(.{
-        .root_module = wamr_mod,
-    });
+        wamr_test.step.dependOn(&iwasm.step);
 
-    wamr_test.step.dependOn(&iwasm.step);
+        const run_wamr_test = b.addRunArtifact(wamr_test);
 
-    const run_wamr_test = b.addRunArtifact(wamr_test);
-
-    const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_wamr_test.step);
+        const test_step = b.step("test", "Run tests");
+        test_step.dependOn(&run_wamr_test.step);
+    }
 }
 
 fn buildCMake(
