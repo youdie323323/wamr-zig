@@ -40,7 +40,10 @@ pub fn build(b: *std.Build) !void {
     bh_reader_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils"));
 
     {
-        const os_tag_name = @tagName(target.result.os.tag);
+        const os_tag_name = switch (target.result.os.tag) {
+            .macos => "darwin",
+            else => @tagName(target.result.os.tag),
+        };
 
         bh_reader_bindgen.addIncludePath(wamr_root.path(
             b,
@@ -71,26 +74,35 @@ pub fn build(b: *std.Build) !void {
     wamr_module.addImport("wasm_c_api", wasm_c_bindgen.createModule());
     wamr_module.addImport("bh_read_file", bh_reader_bindgen.createModule());
 
-    if (target.result.os.tag == .windows) {
+    { // Add library
         wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
-        { // Add libraries (requires 'x64 Native Tools Command Prompt')
-            const lib = try process.getEnvVarOwned(b.allocator, "LIB");
-            defer b.allocator.free(lib);
+        switch (target.result.os.tag) {
+            .windows => {
+                { // Add libraries (requires running on 'x64 Native Tools Command Prompt')
+                    const lib = try process.getEnvVarOwned(b.allocator, "LIB");
+                    defer b.allocator.free(lib);
 
-            var it = mem.tokenizeScalar(u8, lib, ';');
-            while (it.next()) |path|
-                if (path.len > 0)
-                    wamr_module.addLibraryPath(.{ .cwd_relative = b.allocator.dupe(u8, path) catch unreachable });
+                    var it = mem.tokenizeScalar(u8, lib, ';');
+                    while (it.next()) |path|
+                        if (path.len > 0)
+                            wamr_module.addLibraryPath(.{ .cwd_relative = b.allocator.dupe(u8, path) catch unreachable });
+                }
+
+                wamr_module.linkSystemLibrary("uuid", .{});
+                wamr_module.linkSystemLibrary("pathcch", .{});
+                wamr_module.linkSystemLibrary("ws2_32", .{});
+                wamr_module.linkSystemLibrary("bcrypt", .{});
+                wamr_module.linkSystemLibrary("userenv", .{});
+                wamr_module.linkSystemLibrary("advapi32", .{});
+            },
+            .linux => {
+                wamr_module.linkSystemLibrary("pthread", .{});
+                wamr_module.linkSystemLibrary("dl", .{});
+            },
+            else => undefined,
         }
-
-        wamr_module.linkSystemLibrary("uuid", .{});
-        wamr_module.linkSystemLibrary("pathcch", .{});
-        wamr_module.linkSystemLibrary("ws2_32", .{});
-        wamr_module.linkSystemLibrary("bcrypt", .{});
-        wamr_module.linkSystemLibrary("userenv", .{});
-        wamr_module.linkSystemLibrary("advapi32", .{});
-    } else wamr_module.addLibraryPath(b.path(".zig-cache"));
+    }
 
     wamr_module.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
 }
