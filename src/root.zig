@@ -4,7 +4,10 @@ pub const bh_read_file = @import("bh_read_file");
 
 const std = @import("std");
 const testing = std.testing;
+const log = std.log;
 
 test {
+    log.info("awdawadwadadwadwa", .{});
+
     _ = testing.refAllDecls(@This());
 }
