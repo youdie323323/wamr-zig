@@ -6,7 +6,11 @@ const log = std.log;
 const builtin = @import("builtin");
 
 pub fn build(b: *std.Build) !void {
-    const target = b.standardTargetOptions(.{});
+    const target = b.standardTargetOptions(.{
+        .default_target = .{
+            .abi = .msvc,
+        },
+    });
     const optimize = b.standardOptimizeOption(.{});
 
     const wamr_dep = b.dependency("wamr", .{});
@@ -97,6 +101,15 @@ pub fn build(b: *std.Build) !void {
     }
 
     wamr_mod.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
+
+    const wamr_test = b.addTest(.{
+        .root_module = wamr_mod,
+    });
+
+    const run_wamr_test = b.addRunArtifact(wamr_test);
+
+    const test_step = b.step("test", "Run tests");
+    test_step.dependOn(&run_wamr_test.step);
 }
 
 fn buildCMake(
