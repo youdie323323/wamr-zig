@@ -96,8 +96,8 @@ pub fn build(b: *std.Build) !void {
                 wamr_module.linkSystemLibrary("advapi32", .{});
             },
             .linux => {
-                wamr_module.linkSystemLibrary("pthread", .{});
-                wamr_module.linkSystemLibrary("dl", .{});
+                // wamr_module.linkSystemLibrary("pthread", .{});
+                // wamr_module.linkSystemLibrary("dl", .{});
             },
             else => undefined,
         }
