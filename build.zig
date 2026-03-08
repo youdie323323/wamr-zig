@@ -55,7 +55,6 @@ pub fn build(b: *std.Build) !void {
 
     const cmake_build_type = switch (optimize) {
         .Debug => "Debug",
-
         else => "MinSizeRel",
     };
 
