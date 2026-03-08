@@ -32,4 +32,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake
 
+      - if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - run: zig build -Dtarget=${{ matrix.target }} --summary all
