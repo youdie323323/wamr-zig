@@ -1,12 +1,9 @@
 const std = @import("std");
+const mem = std.mem;
+const process = std.process;
+const log = std.log;
 
 const builtin = @import("builtin");
-
-const msvc_path = "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717";
-
-const sdk_path = "C:/Program Files (x86)/Windows Kits/10";
-
-const sdk_version = "10.0.26100.0";
 
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
@@ -77,9 +74,15 @@ pub fn build(b: *std.Build) !void {
     if (target.result.os.tag == .windows) {
         wamr_module.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
-        wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/lib/x64", .{msvc_path}) });
-        // wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/Lib/{s}/um/x64", .{ sdk_path, sdk_version }) });
-        wamr_module.addLibraryPath(.{ .cwd_relative = b.fmt("{s}/Lib/{s}/ucrt/x64", .{ sdk_path, sdk_version }) });
+        { // Add libraries (requires 'x64 Native Tools Command Prompt')
+            const lib = try process.getEnvVarOwned(b.allocator, "LIB");
+            defer b.allocator.free(lib);
+
+            var it = mem.tokenizeScalar(u8, lib, ';');
+            while (it.next()) |path|
+                if (path.len > 0)
+                    wamr_module.addLibraryPath(.{ .cwd_relative = b.allocator.dupe(u8, path) catch unreachable });
+        }
 
         wamr_module.linkSystemLibrary("uuid", .{});
         wamr_module.linkSystemLibrary("pathcch", .{});
