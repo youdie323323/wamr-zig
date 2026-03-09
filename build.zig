@@ -10,7 +10,7 @@ const build_iwasm_out_dir = ".zig-cache/lib";
 const build_iwasm_bin_out_dir = ".zig-cache/bin";
 
 pub fn build(b: *std.Build) !void {
-    const build_iwasm_bin = b.option(bool, "build_iwasm_bin", "Builds iwasm's bin") orelse true;
+    const build_iwasm_bin = b.option(bool, "build_iwasm_bin", "Builds iwasm's bin") orelse false;
 
     const target = b.standardTargetOptions(.{
         .default_target = .{
