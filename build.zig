@@ -7,6 +7,7 @@ const Thread = std.Thread;
 const builtin = @import("builtin");
 
 const build_iwasm_out_dir = ".zig-cache/lib";
+
 const build_iwasm_bin_out_dir = ".zig-cache/bin";
 
 pub fn build(b: *std.Build) !void {
