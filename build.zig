@@ -6,13 +6,20 @@ const Thread = std.Thread;
 
 const builtin = @import("builtin");
 
+const build_iwasm_out_dir = ".zig-cache/lib";
+const build_iwasm_bin_out_dir = ".zig-cache/bin";
+
 pub fn build(b: *std.Build) !void {
+    const build_iwasm_bin = b.option(bool, "build_iwasm_bin", "Builds iwasm's bin") orelse true;
+
     const target = b.standardTargetOptions(.{
         .default_target = .{
             .abi = .msvc,
         },
     });
     const optimize = b.standardOptimizeOption(.{});
+
+    const is_windows = target.result.os.tag == .windows;
 
     const wamr_dep = b.dependency("wamr", .{});
     const wamr_root = wamr_dep.path("");
@@ -38,7 +45,7 @@ pub fn build(b: *std.Build) !void {
         .ReleaseSmall => "MinSizeRel",
     };
 
-    const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
+    const iwasm = buildCMake(b, wamr_root, is_windows, cmake_build_type, build_iwasm_out_dir);
 
     b.getInstallStep().dependOn(&iwasm.step);
 
@@ -52,31 +59,53 @@ pub fn build(b: *std.Build) !void {
     wamr_mod.addImport("wasm_export", wasm_export_bindgen.createModule());
     wamr_mod.addImport("wasm_c_api", wasm_c_api_bindgen.createModule());
 
-    switch (target.result.os.tag) { // Add library
-        .windows => {
-            wamr_mod.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
+    if (is_windows) { // Add library
+        wamr_mod.addLibraryPath(b.path(b.fmt("{s}/{s}", .{ build_iwasm_out_dir, cmake_build_type })));
 
-            { // Add libraries (requires running on 'x64 Native Tools Command Prompt')
-                const lib = try process.getEnvVarOwned(b.allocator, "LIB");
-                defer b.allocator.free(lib);
+        { // Add libraries (requires running on 'x64 Native Tools Command Prompt')
+            const lib = try process.getEnvVarOwned(b.allocator, "LIB");
+            defer b.allocator.free(lib);
 
-                var it = mem.tokenizeScalar(u8, lib, ';');
-                while (it.next()) |path|
-                    if (path.len > 0)
-                        wamr_mod.addLibraryPath(.{ .cwd_relative = b.allocator.dupe(u8, path) catch unreachable });
-            }
+            var it = mem.tokenizeScalar(u8, lib, ';');
+            while (it.next()) |path|
+                if (path.len > 0)
+                    wamr_mod.addLibraryPath(.{ .cwd_relative = b.allocator.dupe(u8, path) catch unreachable });
+        }
 
-            wamr_mod.linkSystemLibrary("uuid", .{});
-            wamr_mod.linkSystemLibrary("pathcch", .{});
-            wamr_mod.linkSystemLibrary("ws2_32", .{});
-            wamr_mod.linkSystemLibrary("bcrypt", .{});
-            wamr_mod.linkSystemLibrary("userenv", .{});
-            wamr_mod.linkSystemLibrary("advapi32", .{});
-        },
-        else => wamr_mod.addLibraryPath(b.path(".zig-cache")), // Linux/macOS won't make a subdirectory
-    }
+        wamr_mod.linkSystemLibrary("uuid", .{});
+        wamr_mod.linkSystemLibrary("pathcch", .{});
+        wamr_mod.linkSystemLibrary("ws2_32", .{});
+        wamr_mod.linkSystemLibrary("bcrypt", .{});
+        wamr_mod.linkSystemLibrary("userenv", .{});
+        wamr_mod.linkSystemLibrary("advapi32", .{});
+    } else wamr_mod.addLibraryPath(b.path(build_iwasm_out_dir)); // Linux/macOS won't make a subdirectory
 
     wamr_mod.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
+
+    if (build_iwasm_bin) { // Build iwasm binary
+        const platform_dir = switch (target.result.os.tag) {
+            .windows => "product-mini/platforms/windows",
+            .linux => "product-mini/platforms/linux",
+            .macos => "product-mini/platforms/darwin",
+            else => @panic("unsupported OS for standalone iwasm"),
+        };
+
+        const iwasm_bin_src = wamr_dep.path(platform_dir);
+        const iwasm_bin_step = buildCMake(b, iwasm_bin_src, is_windows, cmake_build_type, build_iwasm_bin_out_dir);
+
+        const bin_name = if (is_windows) "iwasm.exe" else "iwasm";
+
+        const bin_cache_path =
+            if (is_windows)
+                b.fmt("{s}/{s}/{s}", .{ build_iwasm_bin_out_dir, cmake_build_type, bin_name })
+            else
+                b.fmt("{s}/{s}", .{ build_iwasm_bin_out_dir, bin_name });
+
+        const install_bin_file = b.addInstallBinFile(b.path(bin_cache_path), bin_name);
+        install_bin_file.step.dependOn(&iwasm_bin_step.step);
+
+        b.getInstallStep().dependOn(&install_bin_file.step);
+    }
 
     { // Add test
         const wamr_test = b.addTest(.{
@@ -95,10 +124,11 @@ pub fn build(b: *std.Build) !void {
 fn buildCMake(
     b: *std.Build,
     root: std.Build.LazyPath,
-    target: std.Build.ResolvedTarget,
+    is_windows: bool,
     build_type: []const u8,
+    out_dir: []const u8,
 ) *std.Build.Step.Run {
-    const cache_path = b.path(".zig-cache");
+    const cache_path = b.path(out_dir);
 
     const cmake_config = b.addSystemCommand(&.{"cmake"});
 
@@ -109,11 +139,13 @@ fn buildCMake(
     cmake_config.addArg("-DWAMR_BUILD_REF_TYPES=1");
     cmake_config.addArg("-DWAMR_BUILD_BULK_MEMORY=1");
 
+    cmake_config.addArg("-DWAMR_BUILD_STATIC_PGO=1");
+
     cmake_config.addArg("-DCMAKE_POLICY_DEFAULT_CMP0169=OLD");
 
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
-    if (target.result.os.tag == .windows) {
+    if (is_windows) {
         if (mem.eql(u8, build_type, "Debug"))
             cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL")
         else
@@ -133,7 +165,7 @@ fn buildCMake(
     cmake_build.addArg("--build");
     cmake_build.addDirectoryArg(cache_path);
 
-    if (target.result.os.tag == .windows) {
+    if (is_windows) {
         cmake_build.addArg("--config");
         cmake_build.addArg(build_type);
     }
