@@ -33,8 +33,9 @@ pub fn build(b: *std.Build) !void {
     wasm_export_bindgen.defineCMacro("WASM_ENABLE_AOT", "1");
 
     const cmake_build_type = switch (optimize) {
-        .Debug => "Debug",
-        else => "MinSizeRel",
+        .Debug, .ReleaseSafe => "Debug",
+        .ReleaseFast => "Release",
+        .ReleaseSmall => "MinSizeRel",
     };
 
     const iwasm = buildCMake(b, wamr_root, target, cmake_build_type);
