@@ -81,15 +81,15 @@ pub fn build(b: *std.Build) !void {
         wamr_mod.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
         if (target.result.os.tag == .windows) {
-            { // Add libraries (requires running on 'x64 Native Tools Command Prompt')
-                const lib = try process.getEnvVarOwned(b.allocator, "LIB");
-                defer b.allocator.free(lib);
+            // { // Add libraries (requires running on 'x64 Native Tools Command Prompt')
+            //     const lib = try process.getEnvVarOwned(b.allocator, "LIB");
+            //     defer b.allocator.free(lib);
 
-                var it = mem.tokenizeScalar(u8, lib, ';');
-                while (it.next()) |path|
-                    if (path.len > 0)
-                        wamr_mod.addLibraryPath(.{ .cwd_relative = b.allocator.dupe(u8, path) catch unreachable });
-            }
+            //     var it = mem.tokenizeScalar(u8, lib, ';');
+            //     while (it.next()) |path|
+            //         if (path.len > 0)
+            //             wamr_mod.addLibraryPath(.{ .cwd_relative = b.allocator.dupe(u8, path) catch unreachable });
+            // }
 
             wamr_mod.linkSystemLibrary("uuid", .{});
             wamr_mod.linkSystemLibrary("pathcch", .{});
