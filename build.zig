@@ -32,32 +32,6 @@ pub fn build(b: *std.Build) !void {
     wasm_export_bindgen.defineCMacro("WASM_ENABLE_INTERP", "1");
     wasm_export_bindgen.defineCMacro("WASM_ENABLE_AOT", "1");
 
-    const bh_read_file_bindgen = b.addTranslateC(.{
-        .root_source_file = wamr_root.path(b, "core/shared/utils/uncommon/bh_read_file.c"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    if (target.result.os.tag == .windows)
-        bh_read_file_bindgen.defineCMacro("WIN32_LEAN_AND_MEAN", "1");
-
-    bh_read_file_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils/uncommon"));
-    bh_read_file_bindgen.addIncludePath(wamr_root.path(b, "core/shared/utils"));
-
-    {
-        const os_tag_name = switch (target.result.os.tag) {
-            .macos => "darwin",
-            else => |os_tag| @tagName(os_tag),
-        };
-
-        bh_read_file_bindgen.addIncludePath(wamr_root.path(
-            b,
-            b.fmt("core/shared/platform/{s}", .{os_tag_name}),
-        ));
-
-        bh_read_file_bindgen.addIncludePath(wamr_root.path(b, "core/shared/platform/include"));
-    }
-
     const cmake_build_type = switch (optimize) {
         .Debug => "Debug",
         else => "MinSizeRel",
@@ -76,12 +50,11 @@ pub fn build(b: *std.Build) !void {
 
     wamr_mod.addImport("wasm_export", wasm_export_bindgen.createModule());
     wamr_mod.addImport("wasm_c_api", wasm_c_api_bindgen.createModule());
-    wamr_mod.addImport("bh_read_file", bh_read_file_bindgen.createModule());
 
-    { // Add library
-        wamr_mod.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
+    switch (target.result.os.tag) { // Add library
+        .windows => {
+            wamr_mod.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
-        if (target.result.os.tag == .windows) {
             { // Add libraries (requires running on 'x64 Native Tools Command Prompt')
                 const lib = try process.getEnvVarOwned(b.allocator, "LIB");
                 defer b.allocator.free(lib);
@@ -98,7 +71,8 @@ pub fn build(b: *std.Build) !void {
             wamr_mod.linkSystemLibrary("bcrypt", .{});
             wamr_mod.linkSystemLibrary("userenv", .{});
             wamr_mod.linkSystemLibrary("advapi32", .{});
-        }
+        },
+        else => wamr_mod.addLibraryPath(b.path(".zig-cache")), // Linux/macOS won't make a subdirectory
     }
 
     wamr_mod.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
