@@ -147,13 +147,19 @@ fn buildCMake(
     cmake_config.addArg("-DBUILD_SHARED_LIBS=OFF");
 
     if (is_windows) {
-        if (mem.eql(u8, build_type, "Debug"))
+        cmake_config.addArg("-DCMAKE_POLICY_DEFAULT_CMP0091=NEW");
+
+        const is_debug = mem.eql(u8, build_type, "Debug");
+
+        const mt_flag = if (is_debug) "/MTd" else "/MT";
+
+        if (is_debug)
             cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebug")
         else
             cmake_config.addArg("-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded");
 
-        cmake_config.addArg("-DCMAKE_C_FLAGS=/FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=");
-        cmake_config.addArg("-DCMAKE_CXX_FLAGS=/FS");
+        cmake_config.addArg(b.fmt("-DCMAKE_C_FLAGS={s} /FS /std:c11 /Dalignof=__alignof /Dstatic_assert=_Static_assert /D__attribute__(x)=", .{mt_flag}));
+        cmake_config.addArg(b.fmt("-DCMAKE_CXX_FLAGS={s} /FS", .{mt_flag}));
     }
 
     cmake_config.addPrefixedDirectoryArg("-S", root);
