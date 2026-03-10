@@ -141,6 +141,7 @@ fn buildCMake(
     cmake_config.addArg("-DWAMR_BUILD_BULK_MEMORY=1");
 
     cmake_config.addArg("-DWAMR_BUILD_STATIC_PGO=1");
+    cmake_config.addArg("-DWAMR_BUILD_LLVM_PGO=1");
     cmake_config.addArg("-DWAMR_BUILD_CUSTOM_NAME_SECTION=1");
 
     cmake_config.addArg("-DCMAKE_POLICY_DEFAULT_CMP0169=OLD");
