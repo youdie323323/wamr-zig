@@ -86,7 +86,8 @@ pub fn build(b: *std.Build) !void {
     if (build_iwasm_bin) { // Build iwasm binary
         const platform_dir = switch (target.result.os.tag) {
             .windows => "product-mini/platforms/windows",
-            .linux, .macos, .freebsd, .netbsd, .openbsd, .solaris => "product-mini/platforms/posix",
+            .linux => "product-mini/platforms/linux",
+            .macos => "product-mini/platforms/darwin",
             else => @panic("unsupported OS for standalone iwasm"),
         };
 
