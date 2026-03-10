@@ -6,21 +6,13 @@ const Thread = std.Thread;
 
 const builtin = @import("builtin");
 
-const build_iwasm_out_dir = ".zig-cache/lib";
-
-const build_iwasm_bin_out_dir = ".zig-cache/bin";
-
 pub fn build(b: *std.Build) !void {
-    const build_iwasm_bin = b.option(bool, "build_iwasm_bin", "Builds iwasm's bin") orelse false;
-
     const target = b.standardTargetOptions(.{
         .default_target = .{
             .abi = .msvc,
         },
     });
     const optimize = b.standardOptimizeOption(.{});
-
-    const is_windows = target.result.os.tag == .windows;
 
     const wamr_dep = b.dependency("wamr", .{});
     const wamr_root = wamr_dep.path("");
@@ -40,13 +32,15 @@ pub fn build(b: *std.Build) !void {
     wasm_export_bindgen.defineCMacro("WASM_ENABLE_INTERP", "1");
     wasm_export_bindgen.defineCMacro("WASM_ENABLE_AOT", "1");
 
+    const is_windows = target.result.os.tag == .windows;
+
     const cmake_build_type = switch (optimize) {
         .Debug, .ReleaseSafe => "Debug",
         .ReleaseFast => "Release",
         .ReleaseSmall => "MinSizeRel",
     };
 
-    const iwasm = buildCMake(b, wamr_root, is_windows, cmake_build_type, build_iwasm_out_dir);
+    const iwasm = buildCMake(b, wamr_root, is_windows, cmake_build_type);
 
     b.getInstallStep().dependOn(&iwasm.step);
 
@@ -61,7 +55,7 @@ pub fn build(b: *std.Build) !void {
     wamr_mod.addImport("wasm_c_api", wasm_c_api_bindgen.createModule());
 
     if (is_windows) { // Add library
-        wamr_mod.addLibraryPath(b.path(b.fmt("{s}/{s}", .{ build_iwasm_out_dir, cmake_build_type })));
+        wamr_mod.addLibraryPath(b.path(b.fmt(".zig-cache/{s}", .{cmake_build_type})));
 
         { // Add libraries (requires running on 'x64 Native Tools Command Prompt')
             const lib = try process.getEnvVarOwned(b.allocator, "LIB");
@@ -79,34 +73,9 @@ pub fn build(b: *std.Build) !void {
         wamr_mod.linkSystemLibrary("bcrypt", .{});
         wamr_mod.linkSystemLibrary("userenv", .{});
         wamr_mod.linkSystemLibrary("advapi32", .{});
-    } else wamr_mod.addLibraryPath(b.path(build_iwasm_out_dir)); // Linux/macOS won't make a subdirectory
+    } else wamr_mod.addLibraryPath(b.path(".zig-cache")); // Linux/macOS won't make a subdirectory
 
     wamr_mod.linkSystemLibrary("iwasm", .{ .use_pkg_config = .no });
-
-    if (build_iwasm_bin) { // Build iwasm binary
-        const platform_dir = switch (target.result.os.tag) {
-            .windows => "product-mini/platforms/windows",
-            .linux => "product-mini/platforms/linux",
-            .macos => "product-mini/platforms/darwin",
-            else => @panic("unsupported OS for standalone iwasm"),
-        };
-
-        const iwasm_bin_src = wamr_dep.path(platform_dir);
-        const iwasm_bin_step = buildCMake(b, iwasm_bin_src, is_windows, cmake_build_type, build_iwasm_bin_out_dir);
-
-        const bin_name = if (is_windows) "iwasm.exe" else "iwasm";
-
-        const bin_cache_path =
-            if (is_windows)
-                b.fmt("{s}/{s}/{s}", .{ build_iwasm_bin_out_dir, cmake_build_type, bin_name })
-            else
-                b.fmt("{s}/{s}", .{ build_iwasm_bin_out_dir, bin_name });
-
-        const install_bin_file = b.addInstallBinFile(b.path(bin_cache_path), bin_name);
-        install_bin_file.step.dependOn(&iwasm_bin_step.step);
-
-        b.getInstallStep().dependOn(&install_bin_file.step);
-    }
 
     { // Add test
         const wamr_test = b.addTest(.{
@@ -127,9 +96,8 @@ fn buildCMake(
     root: std.Build.LazyPath,
     is_windows: bool,
     build_type: []const u8,
-    out_dir: []const u8,
 ) *std.Build.Step.Run {
-    const cache_path = b.path(out_dir);
+    const cache_path = b.path(".zig-cache");
 
     const cmake_config = b.addSystemCommand(&.{"cmake"});
 
@@ -139,6 +107,8 @@ fn buildCMake(
     cmake_config.addArg("-DWAMR_BUILD_SIMD=1");
     cmake_config.addArg("-DWAMR_BUILD_REF_TYPES=1");
     cmake_config.addArg("-DWAMR_BUILD_BULK_MEMORY=1");
+
+    cmake_config.addArg("-DWAMR_BUILD_STATIC_PGO=1");
 
     cmake_config.addArg("-DCMAKE_POLICY_DEFAULT_CMP0169=OLD");
 
