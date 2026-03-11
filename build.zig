@@ -33,7 +33,6 @@ pub fn build(b: *std.Build) !void {
     wasm_export_bindgen.defineCMacro("WASM_ENABLE_AOT", "1");
 
     const is_windows = target.result.os.tag == .windows;
-    const is_macos = target.result.os.tag == .macos;
 
     const cmake_build_type = switch (optimize) {
         .Debug, .ReleaseSafe => "Debug",
@@ -85,7 +84,7 @@ pub fn build(b: *std.Build) !void {
 
         wamr_test.step.dependOn(&iwasm.step);
 
-        if (!is_macos)
+        if (is_windows)
             wamr_test.lto = .thin;
 
         const run_wamr_test = b.addRunArtifact(wamr_test);
@@ -147,10 +146,10 @@ fn buildCMake(
         cmake_build.addArg(build_type);
     }
 
-    // const cpu_count = Thread.getCpuCount() catch 1;
+    const cpu_count = Thread.getCpuCount() catch 1;
 
-    // cmake_build.addArg("--parallel");
-    // cmake_build.addArg(b.fmt("{d}", .{cpu_count}));
+    cmake_build.addArg("--parallel");
+    cmake_build.addArg(b.fmt("{d}", .{cpu_count}));
 
     cmake_build.step.dependOn(&cmake_config.step);
 
