@@ -137,8 +137,6 @@ fn buildCMake(
     cmake_config.addPrefixedDirectoryArg("-S", root);
     cmake_config.addPrefixedDirectoryArg("-B", cache_path);
 
-    const cpu_count = Thread.getCpuCount() catch 1;
-
     const cmake_build = b.addSystemCommand(&.{"cmake"});
 
     cmake_build.addArg("--build");
@@ -149,8 +147,10 @@ fn buildCMake(
         cmake_build.addArg(build_type);
     }
 
-    cmake_build.addArg("--parallel");
-    cmake_build.addArg(b.fmt("{d}", .{cpu_count}));
+    // const cpu_count = Thread.getCpuCount() catch 1;
+
+    // cmake_build.addArg("--parallel");
+    // cmake_build.addArg(b.fmt("{d}", .{cpu_count}));
 
     cmake_build.step.dependOn(&cmake_config.step);
 
