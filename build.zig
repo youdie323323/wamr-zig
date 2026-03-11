@@ -82,9 +82,10 @@ pub fn build(b: *std.Build) !void {
             .root_module = wamr_mod,
         });
 
-        wamr_test.lto = .thin;
-
         wamr_test.step.dependOn(&iwasm.step);
+
+        wamr_test.lto = .thin;
+        wamr_test.use_lld = true;
 
         const run_wamr_test = b.addRunArtifact(wamr_test);
 
