@@ -38,3 +38,7 @@ jobs:
           arch: x64
 
       - run: zig build test -Dtarget=${{ matrix.target }} --summary all
+
+      - name: Check for OOM kill
+        if: failure()
+        run: sudo dmesg -T | tail -n 50
