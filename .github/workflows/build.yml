@@ -37,7 +37,7 @@ jobs:
         with:
           arch: x64
 
-      - run: zig build test -Dtarget=${{ matrix.target }} --summary all
+      - run: zig build test -Dtarget=${{ matrix.target }} -Doptimize=ReleaseSafe --summary all
 
       - name: Check for OOM kill
         if: failure()
