@@ -1,0 +1,1 @@
+**Reminder: LTO not works with Debug build (atleast works with ReleaseSafe)**
